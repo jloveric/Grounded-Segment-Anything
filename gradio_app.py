@@ -188,13 +188,16 @@ inpaint_pipeline = None
 
 def run_grounded_sam(input_image, text_prompt, task_type, inpaint_prompt, box_threshold, text_threshold, iou_threshold, inpaint_mode, scribble_mode, openai_api_key):
 
+    print('input_image', input_image, 'text_prompt', text_prompt, 'task_type', task_type)
+
     global blip_processor, blip_model, groundingdino_model, sam_predictor, sam_automask_generator, inpaint_pipeline
 
     # make dir
     os.makedirs(output_dir, exist_ok=True)
     # load image
-    image = input_image["image"]
-    scribble = input_image["mask"]
+    print('image', input_image)
+    image = input_image
+    scribble = None  #input_image["mask"]
     size = image.size # w, h
 
     if sam_predictor is None:
@@ -329,6 +332,7 @@ def run_grounded_sam(input_image, text_prompt, task_type, inpaint_prompt, box_th
 
         image_pil = image_pil.convert('RGBA')
         image_pil.alpha_composite(mask_image)
+        print('returning image_pil',image_pil, 'and mask', mask_image)
         return [image_pil, mask_image]
     elif task_type == 'inpainting':
         assert inpaint_prompt, 'inpaint_prompt is not found!'
@@ -369,11 +373,11 @@ if __name__ == "__main__":
     with block:
         with gr.Row():
             with gr.Column():
-                input_image = gr.Image(source='upload', type="pil", value="assets/demo1.jpg", tool="sketch")
+                input_image = gr.Image(sources=['upload'], type="pil", value="assets/demo1.jpg", interactive=True)
                 task_type = gr.Dropdown(["scribble", "automask", "det", "seg", "inpainting", "automatic"], value="automatic", label="task_type")
                 text_prompt = gr.Textbox(label="Text Prompt")
                 inpaint_prompt = gr.Textbox(label="Inpaint Prompt")
-                run_button = gr.Button(label="Run")
+                run_button = gr.Button(value="Run")
                 with gr.Accordion("Advanced options", open=False):
                     box_threshold = gr.Slider(
                         label="Box Threshold", minimum=0.0, maximum=1.0, value=0.3, step=0.05
@@ -390,11 +394,14 @@ if __name__ == "__main__":
 
             with gr.Column():
                 gallery = gr.Gallery(
-                    label="Generated images", show_label=False, elem_id="gallery"
-                ).style(preview=True, grid=2, object_fit="scale-down")
-
+                    label="Generated images", show_label=False, elem_id="gallery", preview=True, 
+                )
+        inputs=[input_image, text_prompt, task_type, inpaint_prompt, box_threshold, text_threshold, iou_threshold, inpaint_mode, scribble_mode, openai_api_key]
+        
+        print('inputs', inputs)
         run_button.click(fn=run_grounded_sam, inputs=[
-                        input_image, text_prompt, task_type, inpaint_prompt, box_threshold, text_threshold, iou_threshold, inpaint_mode, scribble_mode, openai_api_key], outputs=gallery)
+                        input_image, text_prompt, task_type, inpaint_prompt, box_threshold, 
+                        text_threshold, iou_threshold, inpaint_mode, scribble_mode, openai_api_key], outputs=gallery, api_name="predict")
 
-    block.queue(concurrency_count=100)
+    block.queue()
     block.launch(server_name='0.0.0.0', server_port=args.port, debug=args.debug, share=args.share)
